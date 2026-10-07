@@ -118,3 +118,7 @@ Pentru realizarea ansamblului CAD mecanic (toleranțe, decupaj USB, fixări pe d
 - **Senzor radar mmWave:** [HLK-LD2450 24G Human Presence Sensor](https://grabcad.com/library/hlk-ld2450-24g-human-presence-sensor-millimeter-wave-radar-module-1) (GrabCAD)
 - **Shield alimentare 18650:** [18650 Battery Shield V8](https://grabcad.com/library/18650-battery-shield-v8_enclosure_r2-1) (GrabCAD)
 
+---
+
+*Lynceus MK-I — Sistem radar tactic mmWave pentru cercetare și prototipare embedded.*
+

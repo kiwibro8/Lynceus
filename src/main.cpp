@@ -5,7 +5,7 @@
 #include "display.h"
 #include "proximity_led.h"
 
-// lynceus radar pe esp32-s3
+// lynceus mk-i firmware (esp32-s3)
 // Core 0 citeste radarul pe serial la 256k si filtreaza tintele
 // Core 1 deseneaza ecranul la ~35 fps si asculta comenzile din serial
 
