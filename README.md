@@ -1,4 +1,4 @@
-# Radar Heartbeat - ESP32-S3 + HLK-LD2450 + ST7789
+# Lynceus - ESP32-S3 + HLK-LD2450 + ST7789
 
 Sistem complet de monitorizare și urmărire radar în timp real, bazat pe microcontrollerul **ESP32-S3**, senzorul radar undă milimetrică de 24GHz **HLK-LD2450** și ecranul color **ST7789 320x240 SPI**.
 
