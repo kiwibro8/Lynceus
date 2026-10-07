@@ -116,5 +116,5 @@ Carcasa tactică a radarului **Lynceus MK-I** a fost proiectată special pentru 
 Pentru realizarea ansamblului CAD mecanic (toleranțe, decupaj USB, fixări pe distanțiere și unghi de vizualizare radar), au fost utilizate ca modele dimensionale de referință următoarele piese electronice COTS din comunitatea GrabCAD:
 - **Modul ESP32-S3:** [ESP32-S3-WROOM-1](https://grabcad.com/library/esp32-s3-wroom-1-1) (GrabCAD)
 - **Senzor radar mmWave:** [HLK-LD2450 24G Human Presence Sensor](https://grabcad.com/library/hlk-ld2450-24g-human-presence-sensor-millimeter-wave-radar-module-1) (GrabCAD)
-- **Shield alimentare 18650:** [18650 Battery Shield V8](https://grabcad.com/library/18650-battery-shield-v8_enclosure_r2-1) (GrabCAD) – modulul electronic de alimentare a fost integrat într-un corp de carcasă complet reproiectat și adaptat cerințelor de ergonomie și răcire ale dispozitivului Lynceus.
+- **Shield alimentare 18650:** [18650 Battery Shield V8](https://grabcad.com/library/18650-battery-shield-v8_enclosure_r2-1) (GrabCAD)
 
