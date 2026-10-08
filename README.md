@@ -2,6 +2,11 @@
 
 Sistem complet de monitorizare și urmărire radar în timp real, bazat pe microcontrollerul **ESP32-S3**, senzorul radar undă milimetrică de 24GHz **HLK-LD2450** și ecranul color **ST7789 320x240 SPI**.
 
+<p align="center">
+  <img src="docs/img/lynceus_render_front.png" width="48%" alt="Lynceus MK-I Front View" />
+  <img src="docs/img/lynceus_render_back.png" width="48%" alt="Lynceus MK-I Isometric View" />
+</p>
+
 ---
 
 ## 1. Caracteristici principale
