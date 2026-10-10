@@ -7,12 +7,12 @@ LD2450Radar::LD2450Radar() {
   _serial = NULL;
   _taskHandle = NULL;
   _mux = portMUX_INITIALIZER_UNLOCKED; // mutex pentru transfer de date intre Core 0 si Core 1
-  _filterMode = GHOST_FILTER_AGGRESSIVE;
+  _filterMode = GHOST_FILTER_BALANCED; // modul echilibrat permite captarea tintelor slabe/culcate
   _accuracyMode = ACCURACY_PRECISION;
 
   memset(&_sharedState, 0, sizeof(_sharedState));
   _sharedState.multiTargetActive = false; // mod o singura tinta ca default
-  _sharedState.filterMode = GHOST_FILTER_AGGRESSIVE;
+  _sharedState.filterMode = GHOST_FILTER_BALANCED;
   _sharedState.accuracyMode = ACCURACY_PRECISION;
 
   // pornim cu sloturile de tinte goale

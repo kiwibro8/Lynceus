@@ -31,17 +31,17 @@
 
 #define MAX_TARGETS 3 // radarul stie sa urmareasca maxim 3 tinte o data
 
-// persistenta tintelor pe ecran (milisecunde)
-#define TARGET_STALE_BRIGHT_MS 300  // punct aprins in primele 300ms
-#define TARGET_STALE_ORANGE_MS 800  // devine mai pal daca radarul pierde semnalul
-#define TARGET_STALE_REMOVE_MS 1200 // stergem tinta daca nu mai e vazuta 1.2 secunde
-#define TARGET_HOLD_BRIEF_MS   300  // retinere scurta pentru tinte noi
+// persistenta tintelor pe ecran (milisecunde) - adaptata pentru ciclul respirator (3-4 secunde)
+#define TARGET_STALE_BRIGHT_MS 500  // punct aprins in primele 500ms
+#define TARGET_STALE_ORANGE_MS 1600 // devine mai pal daca radarul pierde semnalul pe zero-crossing
+#define TARGET_STALE_REMOVE_MS 3800 // coasting extins: retinem pozitia 3.8 secunde peste pauzele respiratorii
+#define TARGET_HOLD_BRIEF_MS   800  // retinere pentru tinte statice noi
 #define SENSOR_DEAD_MS         1500 // intram in modul offline daca nu mai primim date 1.5s
 #define RADAR_MIN_DIST_MM      350  // ignoram sub 35cm (carcasa sau degetele noastre)
 
 // unghi de vizualizare (fov)
 // folosim tangenta unghiului (|x| <= y * tan) pentru ca e mult mai rapida decat atan2
-#define RADAR_MAX_FOV_TAN_BAL  1.428f  // 110 grade (mod normal echilibrat)
+#define RADAR_MAX_FOV_TAN_BAL  1.428f  // 110 grade (mod normal echilibrat - optim pentru scanare)
 #define RADAR_MAX_FOV_TAN_AGGR 1.000f  // 90 grade (mod agresiv pentru holuri/spatii inguste)
 #define RADAR_MAX_FOV_TAN_RAW  1.732f  // 120 grade (tot conul senzorului, fara filtrare)
 #define RADAR_MAX_FOV_TAN      RADAR_MAX_FOV_TAN_BAL
