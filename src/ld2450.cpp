@@ -7,13 +7,13 @@ LD2450Radar::LD2450Radar() {
   _serial = NULL;
   _taskHandle = NULL;
   _mux = portMUX_INITIALIZER_UNLOCKED; // mutex pentru transfer de date intre Core 0 si Core 1
-  _filterMode = GHOST_FILTER_BALANCED;
-  _accuracyMode = ACCURACY_TACTICAL;
+  _filterMode = GHOST_FILTER_AGGRESSIVE;
+  _accuracyMode = ACCURACY_PRECISION;
 
   memset(&_sharedState, 0, sizeof(_sharedState));
-  _sharedState.multiTargetActive = true;
-  _sharedState.filterMode = GHOST_FILTER_BALANCED;
-  _sharedState.accuracyMode = ACCURACY_TACTICAL;
+  _sharedState.multiTargetActive = false; // mod o singura tinta ca default
+  _sharedState.filterMode = GHOST_FILTER_AGGRESSIVE;
+  _sharedState.accuracyMode = ACCURACY_PRECISION;
 
   // pornim cu sloturile de tinte goale
   for (int i = 0; i < MAX_TARGETS; i++) {
@@ -43,7 +43,7 @@ bool LD2450Radar::begin(HardwareSerial &serial, int rxPin, int txPin, uint32_t b
 
   portENTER_CRITICAL(&_mux);
   memset(&_sharedState, 0, sizeof(_sharedState));
-  _sharedState.multiTargetActive = true;
+  _sharedState.multiTargetActive = false; // default single target
   _sharedState.filterMode = _filterMode;
   _sharedState.accuracyMode = _accuracyMode;
   for (int i = 0; i < MAX_TARGETS; i++) {
@@ -60,10 +60,10 @@ bool LD2450Radar::begin(HardwareSerial &serial, int rxPin, int txPin, uint32_t b
 
   delay(100);
 
-  // activam modul multi-tinta pe radar
-  bool multiOk = setMultiTargetMode(true);
-  Serial.print("Initializare radar modul Multi-Target: ");
-  Serial.println(multiOk ? "OK" : "REINCERCAM...");
+  // activam modul o singura tinta pe radar ca default pentru stabilitate maxima
+  bool singleOk = setMultiTargetMode(false);
+  Serial.print("Initializare radar modul Single-Target: ");
+  Serial.println(singleOk ? "OK" : "REINCERCAM...");
 
   // cream task-ul pe Core 0 separat de ecran
   BaseType_t res = xTaskCreatePinnedToCore(
