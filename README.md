@@ -4,11 +4,10 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/RADAR-24_GHz_FMCW-00E5FF?style=for-the-badge" alt="Radar 24 GHz" />
-  <img src="https://img.shields.io/badge/MCU-ESP32--S3_Dual--Core-E7352C?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP32-S3" />
-  <img src="https://img.shields.io/badge/RTOS-FreeRTOS_Core_0%2F1-007ACC?style=for-the-badge" alt="FreeRTOS" />
-  <img src="https://img.shields.io/badge/DISPLAY-ST7789_35_FPS_DMA-00C853?style=for-the-badge" alt="ST7789" />
+  <img src="https://img.shields.io/badge/MCU-ESP32--S3-E7352C?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP32-S3" />
+  <img src="https://img.shields.io/badge/RTOS-FreeRTOS-007ACC?style=for-the-badge" alt="FreeRTOS" />
+  <img src="https://img.shields.io/badge/DISPLAY-ST7789_IPS-00C853?style=for-the-badge" alt="ST7789 IPS" />
   <img src="https://img.shields.io/badge/BATTERY-18.7h_AUTONOMY-FFB000?style=for-the-badge" alt="Battery Autonomy" />
-  <img src="https://img.shields.io/badge/STATUS-OPERATIONAL_MK--I-7928CA?style=for-the-badge" alt="Status" />
 </p>
 
 # Lynceus MK-I - ESP32-S3 + HLK-LD2450 + ST7789
