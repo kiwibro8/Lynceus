@@ -127,35 +127,35 @@ pio run -t upload
 
 ## 6. Listă de Componente (Bill of Materials - BOM)
 
-Pentru cine vrea să replice sau să modifice proiectul, mai jos sunt piesele hardware utilizate. Costul total este de aproximativ **150–180 lei (~30–35 €)**:
+Costul total al componentelor hardware este în jur de **150–180 lei (~30–35 €)**:
 
-| Piesă | Model / Specificație | Rol & Observații | Preț estimat |
-| :--- | :--- | :--- | :---: |
-| **Microcontroller** | ESP32-S3 DevKit (N16R8 recomandat) | Creierul sistemului; dual-core 240 MHz, 512KB SRAM internă | ~30 lei |
-| **Senzor Radar mmWave** | Hi-Link HLK-LD2450 | Transceiver FMCW 24 GHz, comunică pe UART la 256.000 baud | ~40 lei |
-| **Afișaj Grafic** | ST7789 2.0" / 2.4" IPS (320x240, SPI) | Panou IPS cu unghiuri largi de vizualizare (fără touch, 8 pini) | ~25 lei |
-| **Sursă de Alimentare** | 18650 Battery Shield V8 (Dual Slot) | Modul cu management de încărcare USB-C, ieșiri stabilizate 5V/3A și 3V | ~20 lei |
-| **Acumulatori** | 2× Celule Li-Ion 18650 (~3000–3300 mAh) | Asigură ~18 ore de autonomie continuă | ~40 lei |
-| **Carcasă 3D** | Filament PLA / PETG (~180g) | Piese printate din folderul `CAD/STL/` | ~15 lei |
-| **Feronerie** | Șuruburi autofiletante M2 / M2.5 | Câteva bucăți pentru fixarea plăcilor și închiderea carcasei | ~5 lei |
+| Piesă | Model / Specificație | Preț estimat |
+| :--- | :--- | :---: |
+| **Microcontroller** | ESP32-S3 DevKit (N16R8 recomandat) | ~30 lei |
+| **Senzor Radar mmWave** | Hi-Link HLK-LD2450 (24 GHz FMCW) | ~40 lei |
+| **Afișaj Grafic** | ST7789 2.0" / 2.4" IPS (320x240, SPI) | ~25 lei |
+| **Sursă de Alimentare** | 18650 Battery Shield V8 (Dual Slot) | ~20 lei |
+| **Acumulatori** | 2× Celule Li-Ion 18650 (~3000–3300 mAh) | ~40 lei |
+| **Carcasă 3D** | Filament (~180g) | ~15 lei |
+| **Feronerie** | Șuruburi M2 / M2.5 | ~5 lei |
 
 ---
 
 ## 7. Carcasă & Printare 3D (Fișiere CAD)
 
-Fișierele pregătite pentru printare se găsesc direct în folderul [`CAD/STL/`](CAD/STL/):
+Toate fișierele pentru carcasă sunt în folderul [`CAD/STL/`](CAD/STL/), gata de aruncat în slicer:
 
-* **`mainBody.stl`** — Șasiul principal al dispozitivului; găzduiește modulul cu baterii 18650 și placa de dezvoltare ESP32-S3.
-* **`Screen.stl`** — Rama superioară înclinată ergonomic pentru ecranul ST7789.
-* **`Front.stl` & `FrontOuter.stl`** — Panoul frontal și rama de protecție pentru antena milimetrică a modulului LD2450.
-* **`button.stl`** — Butonul mecanic lateral pentru interacțiune tactilă.
-* **`Lynceus.step`** — Ansamblul complet în format STEP (pentru cine vrea să facă remix sau să modifice toleranțele în Fusion 360, SolidWorks sau Onshape).
+* **`mainBody.stl`** — Corpul principal în care stau plăcile și suportul pentru baterii.
+* **`Screen.stl`** — Rama de sus pentru ecran, înclinată ergonomic ca să vezi bine display-ul când ții dispozitivul în mână.
+* **`Front.stl` & `FrontOuter.stl`** — Fața carcasei și masca de protecție pentru antena radarului.
+* **`button.stl`** — Butonul mecanic de pe lateral.
+* **`Lynceus.step`** — Ansamblul complet în format STEP, dacă vrei să-i aduci modificări sau să schimbi cote în CAD (Fusion 360, SolidWorks etc.).
 
-**Recomandări pentru slicer (Bambu Studio / PrusaSlicer / Cura):**
-* **Înălțime strat:** 0.20 mm
-* **Perimetre (Walls):** minim 3–4 pereți pentru rezistență mecanică bună la strângerea șuruburilor.
-* **Infill:** 20–25% (Gyroid sau Grid).
-* **Material:** PETG sau ASA recomandat pentru rezistență la temperatură/exterior, dar funcționează perfect și din PLA standard.
+**Câteva recomandări pentru printare:**
+* **Strat:** 0.20 mm e arhisuficient.
+* **Pereți (Walls):** pune minim 3–4 pereți ca să aibă șuruburile în ce să muște fără să crape plasticul.
+* **Infill:** cam 20–25% (merge foarte bine Gyroid sau Grid).
+* **Material:** iese foarte bine din PLA clasic. Dacă vrei ceva mai rezistent la soare și trântit pe afară, PETG sau ASA sunt alegeri și mai bune.
 
 ---
 
