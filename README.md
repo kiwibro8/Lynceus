@@ -125,14 +125,46 @@ pio run -t upload
 
 ---
 
-## 6. Modelare 3D & Credite CAD (Acknowledgments)
+## 6. Listă de Componente (Bill of Materials - BOM)
 
-Carcasa tactică a radarului **Lynceus MK-I** a fost proiectată special pentru integrarea componentelor și imprimare 3D (fișierele de fabricație se află în directorul `cad/`).
+Pentru cine vrea să replice sau să modifice proiectul, mai jos sunt piesele hardware utilizate. Costul total este de aproximativ **150–180 lei (~30–35 €)**:
 
-Pentru realizarea ansamblului CAD mecanic (toleranțe, decupaj USB, fixări pe distanțiere și unghi de vizualizare radar), au fost utilizate ca modele dimensionale de referință următoarele piese electronice COTS din comunitatea GrabCAD:
-- **Modul ESP32-S3:** [ESP32-S3-WROOM-1](https://grabcad.com/library/esp32-s3-wroom-1-1) (GrabCAD)
-- **Senzor radar mmWave:** [HLK-LD2450 24G Human Presence Sensor](https://grabcad.com/library/hlk-ld2450-24g-human-presence-sensor-millimeter-wave-radar-module-1) (GrabCAD)
-- **Shield alimentare 18650:** [18650 Battery Shield V8](https://grabcad.com/library/18650-battery-shield-v8_enclosure_r2-1) (GrabCAD)
+| Piesă | Model / Specificație | Rol & Observații | Preț estimat |
+| :--- | :--- | :--- | :---: |
+| **Microcontroller** | ESP32-S3 DevKit (N16R8 recomandat) | Creierul sistemului; dual-core 240 MHz, 512KB SRAM internă | ~30 lei |
+| **Senzor Radar mmWave** | Hi-Link HLK-LD2450 | Transceiver FMCW 24 GHz, comunică pe UART la 256.000 baud | ~40 lei |
+| **Afișaj Grafic** | ST7789 2.0" / 2.4" IPS (320x240, SPI) | Panou IPS cu unghiuri largi de vizualizare (fără touch, 8 pini) | ~25 lei |
+| **Sursă de Alimentare** | 18650 Battery Shield V8 (Dual Slot) | Modul cu management de încărcare USB-C, ieșiri stabilizate 5V/3A și 3V | ~20 lei |
+| **Acumulatori** | 2× Celule Li-Ion 18650 (~3000–3300 mAh) | Asigură ~18 ore de autonomie continuă | ~40 lei |
+| **Carcasă 3D** | Filament PLA / PETG (~180g) | Piese printate din folderul `CAD/STL/` | ~15 lei |
+| **Feronerie** | Șuruburi autofiletante M2 / M2.5 | Câteva bucăți pentru fixarea plăcilor și închiderea carcasei | ~5 lei |
+
+---
+
+## 7. Carcasă & Printare 3D (Fișiere CAD)
+
+Fișierele pregătite pentru printare se găsesc direct în folderul [`CAD/STL/`](CAD/STL/):
+
+* **`mainBody.stl`** — Șasiul principal al dispozitivului; găzduiește modulul cu baterii 18650 și placa de dezvoltare ESP32-S3.
+* **`Screen.stl`** — Rama superioară înclinată ergonomic pentru ecranul ST7789.
+* **`Front.stl` & `FrontOuter.stl`** — Panoul frontal și rama de protecție pentru antena milimetrică a modulului LD2450.
+* **`button.stl`** — Butonul mecanic lateral pentru interacțiune tactilă.
+* **`Lynceus.step`** — Ansamblul complet în format STEP (pentru cine vrea să facă remix sau să modifice toleranțele în Fusion 360, SolidWorks sau Onshape).
+
+**Recomandări pentru slicer (Bambu Studio / PrusaSlicer / Cura):**
+* **Înălțime strat:** 0.20 mm
+* **Perimetre (Walls):** minim 3–4 pereți pentru rezistență mecanică bună la strângerea șuruburilor.
+* **Infill:** 20–25% (Gyroid sau Grid).
+* **Material:** PETG sau ASA recomandat pentru rezistență la temperatură/exterior, dar funcționează perfect și din PLA standard.
+
+---
+
+## 8. Credite & Modele CAD de Referință
+
+Pentru proiectarea carcasei (toleranțe, decupaj USB, fixări pe distanțiere și unghi de vizualizare radar), au fost utilizate ca modele dimensionale de referință următoarele piese din comunitatea GrabCAD:
+- **Modul ESP32-S3:** [ESP32-S3-WROOM-1](https://grabcad.com/library/esp32-s3-wroom-1-1)
+- **Senzor radar mmWave:** [HLK-LD2450 24G Human Presence Sensor](https://grabcad.com/library/hlk-ld2450-24g-human-presence-sensor-millimeter-wave-radar-module-1)
+- **Shield alimentare 18650:** [18650 Battery Shield V8](https://grabcad.com/library/18650-battery-shield-v8_enclosure_r2-1)
 
 ---
 
