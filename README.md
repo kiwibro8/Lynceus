@@ -15,8 +15,9 @@
 **Lynceus MK-I** este un radar portabil în unde milimetrice (24 GHz FMCW) construit în jurul unui **ESP32-S3**, al senzorului **HLK-LD2450** și al unui ecran IPS **ST7789 (320×240)**. Detectează și urmărește simultan până la 3 persoane în timp real — afișând poziția 2D, distanța, viteza și direcția de mers pe o interfață grafică fluidă la ~35 FPS.
 
 <p align="center">
-  <img src="docs/img/lynceus_render_front.png" width="48%" alt="Lynceus MK-I Front View" />
-  <img src="docs/img/lynceus_render_back.png" width="48%" alt="Lynceus MK-I Isometric View" />
+  <img src="docs/img/lynceus_render_front.png" width="32%" alt="Lynceus MK-I Front View" />
+  <img src="docs/img/lynceus_render_back.png" width="32%" alt="Lynceus MK-I Isometric View" />
+  <img src="docs/img/lynceus_render_side.png" width="32%" alt="Lynceus MK-I Side View" />
 </p>
 
 ---
