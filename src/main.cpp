@@ -35,7 +35,6 @@ void printSerialTelemetry(const CODSharedState &state, bool connected) {
   Serial.printf("Tinte detectate: %d | Cel mai apropiat obiect: %d mm\n",
                 state.activeCount, proxLed.getLastMinDist());
 
-  unsigned long now = millis();
   for (int i = 0; i < MAX_TARGETS; i++) {
     if (state.targets[i].valid) {
       const auto &t = state.targets[i];
@@ -210,30 +209,30 @@ void loop() {
   // Pasul 1: verificam daca utilizatorul a tastat comenzi in consola seriala
   handleSerialCommands();
 
-  // Pasul 2: preluam un instantaneu complet al datelor radarului de pe Nucleul 0.
+  // Pasul 2: verificam temporizarea cadrelor (~35 FPS, un cadru la fiecare 28ms).
+  // daca inca nu a trecut timpul pentru urmatorul cadru, lasam procesorul sa se odihneasca scurt
+  // fara sa blocam inutil spinlock-ul cu getSnapshot()
+  unsigned long now = millis();
+  unsigned long elapsed = now - lastUiUpdate;
+  if (elapsed < UI_REFRESH_INTERVAL_MS) {
+    unsigned long ramase = UI_REFRESH_INTERVAL_MS - elapsed;
+    if (ramase > 2) delay(ramase - 1);
+    else delay(1);
+    return;
+  }
+  lastUiUpdate = now;
+
+  // Pasul 3: preluam un instantaneu complet al datelor radarului de pe Nucleul 0.
   // apelul getSnapshot() foloseste spinlock hardware (portENTER_CRITICAL),
   // garantand ca nu citim coordonate pe jumatate scrise de Core 0.
   CODSharedState state = radar.getSnapshot();
-  unsigned long now = millis();
 
   // verificam daca radarul inca emite date (daca nu a mai trimis nimic de 1.5s, e offline)
   bool connected = (state.lastHeartbeatMs > 0 && (now - state.lastHeartbeatMs < SENSOR_DEAD_MS));
 
-  // Pasul 3: actualizam culoarea LED-ului RGB in functie de cel mai apropiat obiect
+  // Pasul 4: actualizam culoarea LED-ului RGB si randam cadrul complet pe ecran
   proxLed.update(state, connected);
-
-  // Pasul 4: randam ecranul la intervale regulate de 28 milisecunde (~35 FPS)
-  unsigned long elapsed = now - lastUiUpdate;
-  if (elapsed >= UI_REFRESH_INTERVAL_MS) {
-    lastUiUpdate = now;
-    display.render(state, connected);
-  } else {
-    // daca am terminat randarea mai repede de 28ms, lasam procesorul sa se odihneasca scurt,
-    // evitand ca bucla while/loop sa consume 100% CPU inutil
-    unsigned long ramase = UI_REFRESH_INTERVAL_MS - elapsed;
-    if (ramase > 2) delay(ramase - 1);
-    else delay(1);
-  }
+  display.render(state, connected);
 
   // Pasul 5: emitem raportul de telemetrie in consola seriala o data pe secunda (1 Hz)
   if (now - lastSerialTelemetry >= SERIAL_TELEMETRY_MS) {

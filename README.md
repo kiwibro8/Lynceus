@@ -3,15 +3,16 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/RADAR-24_GHz_FMCW-00E5FF?style=for-the-badge" alt="Radar 24 GHz" />
-  <img src="https://img.shields.io/badge/MCU-ESP32--S3-E7352C?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP32-S3" />
-  <img src="https://img.shields.io/badge/DISPLAY-ST7789_IPS-00C853?style=for-the-badge" alt="ST7789 IPS" />
-  <img src="https://img.shields.io/badge/BATTERY-18.7h_AUTONOMY-FFB000?style=for-the-badge" alt="Battery Autonomy" />
+  <a href="#2-conexiuni-hardware-pinout"><img src="https://img.shields.io/badge/RADAR-24_GHz_FMCW-0284C7?style=for-the-badge&labelColor=18181B" alt="Radar 24 GHz" /></a>
+  <a href="platformio.ini"><img src="https://img.shields.io/badge/MCU-ESP32--S3-E7352C?style=for-the-badge&logo=espressif&logoColor=white&labelColor=18181B" alt="ESP32-S3" /></a>
+  <a href="#2-conexiuni-hardware-pinout"><img src="https://img.shields.io/badge/DISPLAY-ST7789_IPS-16A34A?style=for-the-badge&labelColor=18181B" alt="ST7789 IPS" /></a>
+  <a href="#6-listă-de-componente-bill-of-materials---bom"><img src="https://img.shields.io/badge/BATTERY-~18H_AUTONOMY-D97706?style=for-the-badge&labelColor=18181B" alt="Battery Autonomy" /></a>
+  <a href="CAD/"><img src="https://img.shields.io/badge/CAD-STL_%26_STEP-7C3AED?style=for-the-badge&labelColor=18181B" alt="3D CAD Files" /></a>
 </p>
 
-# Lynceus MK-I - ESP32-S3 + HLK-LD2450 + ST7789
+# Lynceus MK-I — ESP32-S3 + HLK-LD2450 + ST7789
 
-Sistem tactic complet de monitorizare și urmărire radar în timp real, bazat pe microcontrollerul **ESP32-S3**, senzorul radar undă milimetrică de 24GHz **HLK-LD2450** și ecranul color **ST7789 320x240 SPI**.
+**Lynceus MK-I** este un radar portabil în unde milimetrice (24 GHz FMCW) construit în jurul unui **ESP32-S3**, al senzorului **HLK-LD2450** și al unui ecran IPS **ST7789 (320×240)**. Detectează și urmărește simultan până la 3 persoane în timp real — afișând poziția 2D, distanța, viteza și direcția de mers pe o interfață grafică fluidă la ~35 FPS.
 
 <p align="center">
   <img src="docs/img/lynceus_render_front.png" width="48%" alt="Lynceus MK-I Front View" />
@@ -23,25 +24,26 @@ Sistem tactic complet de monitorizare și urmărire radar în timp real, bazat p
 ## 1. Caracteristici principale
 
 - **Arhitectură Dual-Core pe ESP32-S3 (FreeRTOS):**
-  - **Core 0:** Task dedicat de fundal pentru citirea continuă a radarului pe UART la 256.000 baud și procesarea filtrelor cinematice.
-  - **Core 1:** Rulează bucla grafică (UI la ~35 FPS), controlul LED-ului RGB și procesarea comenzilor de la utilizator.
-  - Datele sunt sincronizate în siguranță între nuclee prin stare partajată protejată cu spinlock (`portENTER_CRITICAL`).
-- **Afișaj grafic rapid și fără pâlpâire (Double-Buffering):**
-  - Comunicare SPI hardware la frecvența de **40 MHz**.
-  - Randare completă în memorie (`GFXcanvas16`) înainte de afișare, eliminând complet efectul de pâlpâire (flicker-free).
-  - Geometrie precalculată (Look-Up Table) pentru cercuri și linii radiale, evitând calcule trigonometrice costisitoare în fiecare cadru.
+  - **Core 0:** Task dedicat de fundal pentru citirea continuă a radarului pe UART la 256.000 baud, decodarea pachetelor și rularea filtrelor cinematice.
+  - **Core 1:** Desenează interfața grafică la ~35 FPS, controlează LED-ul RGB de proximitate și preia comenzile din consolă.
+  - Sincronizare rapidă și sigură între nuclee prin spinlock hardware (`portENTER_CRITICAL`) și pauză cooperativă la configurarea senzorului.
+- **Afișaj grafic la ~35 FPS (Double-Buffering în RAM):**
+  - Comunicare SPI hardware la **40 MHz** cu randare completă în memorie (`GFXcanvas16`) înainte de afișare, fără pâlpâire pe ecran.
+  - Tabelă de offset-uri precalculată (LUT) pentru inelele de distanță și rotație vectorială 2D directă pentru săgețile de viteză.
+  - Două scări de vizualizare comutabile din mers: **CQB Zoom (3m)** pentru spații înguste și **Normal (6m)**.
 - **Filtrare avansată și urmărire cinematică 2D:**
-  - **Filtru Anti-Ghost:** Confirmare multi-cadru și filtrare după unghiul conului util pentru eliminarea reflexiilor de pe pereți.
-  - **Deadband Anti-Tremurat:** Când o persoană se oprește pe loc, poziția este blocată pe o ancoră fixă pentru a preveni fluctuațiile pe ecran.
-  - **Vectori de viteză și urme (Trails):** Fiecare țintă are săgeată de direcție și o urmă vizuală estompată în timp.
-- **Indicator vizual de proximitate (NeoPixel WS2812):**
-  - Schimbă culoarea fluid în funcție de cel mai apropiat obiect:
-    - Sub 1m: Roșu (pericol / apropiere mare)
-    - 1m - 2m: Portocaliu
-    - 2m - 3.5m: Galben / Verde
-    - 3.5m - 5m: Cyan
+  - **Filtru Anti-Ghost:** Confirmare multi-cadru, protecție la salturi fizic imposibile și limitarea unghiului conului util (90° / 110° / 120°) pentru tăierea reflexiilor din pereții laterali.
+  - **Stabilizare la birou (Anti-Centroid Hopping):** Când o persoană stă pe scaun și mișcă doar mâna sau mouse-ul, punctul rămâne ancorat pe trunchi fără să sară între piept și braț.
+  - **Persistență peste ciclul respirator (Hold 3.8s):** Păstrează țintele statice pe ecran în timpul pauzelor dintre respirații (`[HLD]`), estompând treptat conturul pe măsură ce semnalul se învechește.
+  - **Vectori de viteză și dâră de mișcare (Trails):** Fiecare țintă are săgeată de direcție scalată după viteză și o urmă vizuală care se stinge treptat în spate.
+- **Indicator optic de proximitate (NeoPixel WS2812):**
+  - Își schimbă culoarea continuu în funcție de distanța până la cea mai apropiată persoană:
+    - Sub 1m: Roșu (apropiere mare)
+    - 1m – 2m: Portocaliu
+    - 2m – 3.5m: Galben / Verde
+    - 3.5m – 5m: Cyan
     - Peste 5m: Albastru
-    - Senzor deconectat: Roșu pulsant (efect respirație)
+    - Senzor deconectat: Roșu pulsant (efect de breathing când senzorul nu răspunde)
 
 ---
 
@@ -73,20 +75,21 @@ Sistem tactic complet de monitorizare și urmărire radar în timp real, bazat p
 
 ```
 Lynceus/
-├── cad/                  # Fisiere de fabricatie: STL (printare 3D) si STEP (ansamblu mecanic)
+├── CAD/                  # Fișiere 3D pentru carcasă: STL (pentru printare) și STEP (ansamblul complet)
+├── docs/img/             # Randări 3D ale carcasei și bannerul proiectului
 ├── include/
-│   ├── config.h          # Toate setările hardware, pini, culori și praguri
+│   ├── config.h          # Toate setările hardware, pini, culori și praguri de filtrare
 │   ├── radar_types.h     # Structurile de date pentru ținte și starea partajată
-│   ├── ld2450.h          # Clasa radarului și definițiile funcțiilor
-│   ├── display.h         # Managerul ecranului TFT ST7789
-│   └── proximity_led.h   # Modulul de control pentru ledul RGB NeoPixel
+│   ├── ld2450.h          # Clasa radarului și definițiile trackerului intern
+│   ├── display.h         # Managerul grafic pentru ecranul TFT ST7789
+│   └── proximity_led.h   # Modulul de control pentru LED-ul RGB NeoPixel
 ├── src/
-│   ├── ld2450.cpp        # Decodare pachete 30 bytes, task Core 0 și filtre
-│   ├── display.cpp       # Desenare canvas, cercuri, săgeți și telemetrie
-│   ├── proximity_led.cpp # Calculul gradientului de culoare după distanță
-│   └── main.cpp          # Setup, loop cooperativ și comenzi Serial
-├── platformio.ini        # Configurația PlatformIO (ESP32-S3, librării)
-├── .gitignore            # Excludere foldere de build (.pio)
+│   ├── ld2450.cpp        # Decodare pachete 30 bytes, task Core 0 și filtre cinematice
+│   ├── display.cpp       # Desenare canvas, inele LUT, săgeți și telemetrie HUD
+│   ├── proximity_led.cpp # Calculul culorii LED-ului în funcție de distanță
+│   └── main.cpp          # Inițializare, bucla de afișare și comenzi în Serial Monitor
+├── platformio.ini        # Configurația PlatformIO (ESP32-S3, optimizări compilator, librării)
+├── LICENSE               # Licența MIT
 └── README.md             # Documentația proiectului
 ```
 
@@ -100,9 +103,9 @@ Poți deschide consola Serial la viteza **115200 baud** și tasta următoarele c
 | :---: | :--- |
 | **A** | Schimbă modul de acuratețe (`NORMAL` -> `PRECIZIE` -> `RAPID`) |
 | **G** | Schimbă filtrul anti-reflexii (`ECHILIBRAT` -> `AGRESIV` -> `OPRIT / RAW`) |
-| **M** | Activează modul Multi-Target (urmărește până la 3 persoane) |
-| **S** | Activează modul Single-Target (concentrare pe 1 persoană) |
-| **V** | Interoghează versiunea de firmware a radarului |
+| **M** | Activează modul Multi-Target (urmărește până la 3 persoane simultan) |
+| **S** | Activează modul Single-Target (urmărește doar cea mai puternică țintă) |
+| **V** | Interoghează versiunea de firmware a modulului radar |
 | **F** | Resetare la setările din fabrică ale senzorului |
 | **R** | Repornire software (reboot) a senzorului |
 | **O** | Rotește afișajul ecranului cu 180° |
@@ -143,13 +146,13 @@ Costul total al componentelor hardware este în jur de **150–180 lei (~30–35
 
 ## 7. Carcasă & Printare 3D (Fișiere CAD)
 
-Toate fișierele pentru carcasă sunt în folderul [`CAD/STL/`](CAD/STL/), gata de aruncat în slicer:
+Fișierele pregătite de pus direct în slicer se găsesc în [`CAD/STL/`](CAD/STL/):
 
 * **`mainBody.stl`** — Corpul principal în care stau plăcile și suportul pentru baterii.
 * **`Screen.stl`** — Rama de sus pentru ecran, înclinată ergonomic ca să vezi bine display-ul când ții dispozitivul în mână.
 * **`Front.stl` & `FrontOuter.stl`** — Fața carcasei și masca de protecție pentru antena radarului.
 * **`button.stl`** — Butonul mecanic de pe lateral.
-* **`Lynceus.step`** — Ansamblul complet în format STEP, dacă vrei să-i aduci modificări sau să schimbi cote în CAD (Fusion 360, SolidWorks etc.).
+* **[`Lynceus.step`](CAD/Lynceus.step)** — Ansamblul complet în format STEP (aflat în folderul [`CAD/`](CAD/)), dacă vrei să-i aduci modificări sau să schimbi cote în CAD (Fusion 360, SolidWorks, Onshape etc.).
 
 **Câteva recomandări pentru printare:**
 * **Strat:** 0.20 mm e arhisuficient.
@@ -161,12 +164,11 @@ Toate fișierele pentru carcasă sunt în folderul [`CAD/STL/`](CAD/STL/), gata 
 
 ## 8. Credite & Modele CAD de Referință
 
-Pentru proiectarea carcasei (toleranțe, decupaj USB, fixări pe distanțiere și unghi de vizualizare radar), au fost utilizate ca modele dimensionale de referință următoarele piese din comunitatea GrabCAD:
+Pentru proiectarea carcasei (toleranțe, decupaj USB, fixări pe distanțiere și unghi de vizualizare radar), au fost folosite ca referință dimensională următoarele modele din comunitatea GrabCAD:
 - **Modul ESP32-S3:** [ESP32-S3-WROOM-1](https://grabcad.com/library/esp32-s3-wroom-1-1)
 - **Senzor radar mmWave:** [HLK-LD2450 24G Human Presence Sensor](https://grabcad.com/library/hlk-ld2450-24g-human-presence-sensor-millimeter-wave-radar-module-1)
 - **Shield alimentare 18650:** [18650 Battery Shield V8](https://grabcad.com/library/18650-battery-shield-v8_enclosure_r2-1)
 
 ---
 
-*Lynceus MK-I — Sistem radar tactic mmWave pentru cercetare și prototipare embedded.*
-
+*Lynceus MK-I — Proiect open-source de radar portabil 24 GHz pe ESP32-S3.*

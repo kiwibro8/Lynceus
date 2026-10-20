@@ -43,11 +43,7 @@ private:
   TargetTrail    _trails[MAX_TARGETS];
 
   // tabele precalculate (LUT) pentru cercuri si linii ca sa mearga rapid fara sin/cos in loop
-  struct RingPoint {
-    int x;
-    int y;
-  };
-  RingPoint _ringPoints[400];
+  uint32_t  _ringOffsets[400];
   int       _numRingPoints;
   int       _spokeEndX[5];
   int       _spokeEndY[5];
@@ -74,10 +70,10 @@ private:
   bool worldToCanvas(float worldX_mm, float worldY_mm, int &canvasX, int &canvasY);
 
   // grafica pentru tinte
-  void drawVelocityArrow(int startX, int startY, int endX, int endY, uint16_t color);
+  void drawVelocityArrow(int startX, int startY, int endX, int endY, float ux, float uy, uint16_t color);
   void drawTargetPing(int x, int y, int id, int dist_mm, unsigned long ageMs, uint16_t targetColor, bool isHeld);
   void updateTrails(int slot, int scX, int scY, unsigned long now);
-  void drawTrails(int slot, uint16_t targetColor);
+  void drawTrails(int slot, uint16_t targetColor, unsigned long now);
 
   static uint16_t getTargetColor(int slotIdx);
   static uint16_t trailColorForLife(uint16_t baseColor, float lifeRatio);

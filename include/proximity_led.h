@@ -30,6 +30,9 @@ private:
   int _currentR;
   int _currentG;
   int _currentB;
+  uint8_t _lastR;
+  uint8_t _lastG;
+  uint8_t _lastB;
   int _lastMinDist;
   unsigned long _lastUpdateMs;
 

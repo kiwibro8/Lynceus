@@ -8,12 +8,15 @@ LD2450Radar::LD2450Radar() {
   _taskHandle = NULL;
   _mux = portMUX_INITIALIZER_UNLOCKED; // mutex pentru transfer de date intre Core 0 si Core 1
   _filterMode = GHOST_FILTER_BALANCED; // modul echilibrat permite captarea tintelor slabe/culcate
-  _accuracyMode = ACCURACY_PRECISION;
+  _accuracyMode = ACCURACY_TACTICAL;
+  _resetTrackersPending = false;
+  _pauseRequested = false;
+  _taskPaused = false;
 
   memset(&_sharedState, 0, sizeof(_sharedState));
-  _sharedState.multiTargetActive = false; // mod o singura tinta ca default
+  _sharedState.multiTargetActive = true;
   _sharedState.filterMode = GHOST_FILTER_BALANCED;
-  _sharedState.accuracyMode = ACCURACY_PRECISION;
+  _sharedState.accuracyMode = ACCURACY_TACTICAL;
 
   // pornim cu sloturile de tinte goale
   for (int i = 0; i < MAX_TARGETS; i++) {
@@ -43,9 +46,10 @@ bool LD2450Radar::begin(HardwareSerial &serial, int rxPin, int txPin, uint32_t b
 
   portENTER_CRITICAL(&_mux);
   memset(&_sharedState, 0, sizeof(_sharedState));
-  _sharedState.multiTargetActive = false; // default single target
+  _sharedState.multiTargetActive = true;
   _sharedState.filterMode = _filterMode;
   _sharedState.accuracyMode = _accuracyMode;
+  _resetTrackersPending = false;
   for (int i = 0; i < MAX_TARGETS; i++) {
     _sharedState.targets[i].id = i + 1;
     _slotTrackers[i] = {
@@ -60,10 +64,10 @@ bool LD2450Radar::begin(HardwareSerial &serial, int rxPin, int txPin, uint32_t b
 
   delay(100);
 
-  // activam modul o singura tinta pe radar ca default pentru stabilitate maxima
-  bool singleOk = setMultiTargetMode(false);
-  Serial.print("Initializare radar modul Single-Target: ");
-  Serial.println(singleOk ? "OK" : "REINCERCAM...");
+  // activam modul multi-tinta pe radar
+  bool multiOk = setMultiTargetMode(true);
+  Serial.print("Initializare radar modul Multi-Target: ");
+  Serial.println(multiOk ? "OK" : "REINCERCAM...");
 
   // cream task-ul pe Core 0 separat de ecran
   BaseType_t res = xTaskCreatePinnedToCore(
@@ -118,9 +122,19 @@ int LD2450Radar::decodeSpeed(uint8_t lo, uint8_t hi) {
 void LD2450Radar::sensorTaskLoop() {
   uint8_t rxBuffer[64];
   int bufferIndex = 0;
-  uint32_t pendingBytes = 0;
 
   for (;;) {
+    // daca Nucleul 1 trimite o comanda de configurare, oprim citirea in siguranta fara sa blocam UART-ul
+    if (_pauseRequested) {
+      bufferIndex = 0;
+      _taskPaused = true;
+      while (_pauseRequested) {
+        vTaskDelay(pdMS_TO_TICKS(5));
+      }
+      _taskPaused = false;
+      continue;
+    }
+
     if (_serial == NULL) {
       vTaskDelay(pdMS_TO_TICKS(50));
       continue;
@@ -137,14 +151,12 @@ void LD2450Radar::sensorTaskLoop() {
     uint8_t chunk[64];
     int deCitit = (avail > (int)sizeof(chunk)) ? (int)sizeof(chunk) : avail;
     int bytesCititi = _serial->read(chunk, deCitit);
-    pendingBytes += bytesCititi;
 
     // trimitem fiecare octet primit catre masina de stari care reasambleaza cadrul
     for (int i = 0; i < bytesCititi; i++) {
       if (feedFrameByte(chunk[i], rxBuffer, bufferIndex)) {
         // am gasit un pachet complet si valid de 30 octeti -> il procesam imediat!
-        processFrame(rxBuffer, pendingBytes);
-        pendingBytes = 0;
+        processFrame(rxBuffer);
         bufferIndex = 0;
       }
     }
@@ -186,12 +198,18 @@ bool LD2450Radar::feedFrameByte(uint8_t byte, uint8_t* frameBuffer, int &frameIn
       }
 
       // daca coada nu se potriveste (zgomot pe cablu sau octeti pierduti), nu aruncam tot bufferul!
-      // cautam daca nu cumva in interiorul pachetului exista un nou 0xAA si ne sincronizam de acolo.
+      // cautam daca in interiorul pachetului incepe un nou antet valid (0xAA 0xFF 0x03 0x00) si ne resincronizam.
       int nextHdr = -1;
       for (int k = 1; k < 30; k++) {
         if (frameBuffer[k] == 0xAA) {
-          nextHdr = k;
-          break;
+          bool antetPosibil = true;
+          if (k + 1 < 30 && frameBuffer[k + 1] != 0xFF) antetPosibil = false;
+          if (k + 2 < 30 && frameBuffer[k + 2] != 0x03) antetPosibil = false;
+          if (k + 3 < 30 && frameBuffer[k + 3] != 0x00) antetPosibil = false;
+          if (antetPosibil) {
+            nextHdr = k;
+            break;
+          }
         }
       }
       if (nextHdr != -1) {
@@ -207,16 +225,32 @@ bool LD2450Radar::feedFrameByte(uint8_t byte, uint8_t* frameBuffer, int &frameIn
 }
 
 // functia centrala apelata la fiecare pachet valid receptionat (de ~20 de ori pe secunda)
-void LD2450Radar::processFrame(const uint8_t* frame, uint32_t byteCount) {
+void LD2450Radar::processFrame(const uint8_t* frame) {
   unsigned long now = millis();
 
-  // preluam modurile active de filtrare protejat prin spinlock
+  // preluam modurile active de filtrare si verificam daca trebuie resetate trackerele
   GhostFilterMode gMode;
   AccuracyMode    aMode;
+  bool            resetPending = false;
   portENTER_CRITICAL(&_mux);
   gMode = _filterMode;
   aMode = _accuracyMode;
+  if (_resetTrackersPending) {
+    resetPending = true;
+    _resetTrackersPending = false;
+  }
   portEXIT_CRITICAL(&_mux);
+
+  if (resetPending) {
+    for (int i = 0; i < MAX_TARGETS; i++) {
+      _slotTrackers[i].hits = 0;
+      _slotTrackers[i].confirmed = false;
+      _slotTrackers[i].hasMoved = false;
+      _slotTrackers[i].isStationary = false;
+      _slotTrackers[i].isQuasiStatic = false;
+      _slotTrackers[i].limbHopHits = 0;
+    }
+  }
 
   // calculam tangenta conului de vizualizare in functie de modul ales:
   // - normal: con util de 110 grade (taie peretii laterali din camere mici)
@@ -249,7 +283,7 @@ void LD2450Radar::processFrame(const uint8_t* frame, uint32_t byteCount) {
   }
 
   // Pasul 5: copiem starea filtrata in structura partajata de unde o citeste ecranul
-  publishTargetState(frame, candidates, slotMap, byteCount, now, gMode, aMode);
+  publishTargetState(candidates, slotMap, now, gMode);
 }
 
 // extrage coordonatele brute ale celor 3 tinte posibile din sarcina utila de 24 octeti a pachetului.
@@ -290,32 +324,33 @@ void LD2450Radar::decodeCandidates(const uint8_t* frame, RawCandidate* candidate
 // asocierea punctelor noi cu tintele vechi (ca sa nu sara culorile la fiecare cadru)
 void LD2450Radar::associateCandidates(RawCandidate* candidates, int8_t* slotMap) {
   bool folosit[MAX_TARGETS] = {false, false, false};
+  const float gateSq = (float)TRACK_ASSOCIATION_GATE_MM * (float)TRACK_ASSOCIATION_GATE_MM;
 
-  // intai legam sloturile deja confirmate de punctele cele mai apropiate
+  // Pasul 1: legam sloturile deja confirmate de punctele cele mai apropiate (comparam distantele la patrat fara sqrtf)
   for (int trkIdx = 0; trkIdx < MAX_TARGETS; trkIdx++) {
     SlotTracker &tr = _slotTrackers[trkIdx];
     if (!tr.confirmed || tr.hits == 0) continue;
 
     int   bestCand = -1;
-    float bestDist = (float)TRACK_ASSOCIATION_GATE_MM; // maxim 90cm salt admis
+    float bestDistSq = gateSq; // maxim 90cm salt admis
 
     for (int c = 0; c < MAX_TARGETS; c++) {
       if (!candidates[c].valid || folosit[c]) continue;
 
       float dx = (float)candidates[c].x - tr.estX;
       float dy = (float)candidates[c].y - tr.estY;
-      float d = sqrtf(dx * dx + dy * dy);
+      float dSq = dx * dx + dy * dy;
 
       // daca sta la birou, masuram si fata de ancora de trunchi
       if (tr.isQuasiStatic || tr.isStationary) {
         float dxAnc = (float)candidates[c].x - tr.anchorX;
         float dyAnc = (float)candidates[c].y - tr.anchorY;
-        float dAnc = sqrtf(dxAnc * dxAnc + dyAnc * dyAnc);
-        if (dAnc < d) d = dAnc;
+        float dAncSq = dxAnc * dxAnc + dyAnc * dyAnc;
+        if (dAncSq < dSq) dSq = dAncSq;
       }
 
-      if (d < bestDist) {
-        bestDist = d;
+      if (dSq < bestDistSq) {
+        bestDistSq = dSq;
         bestCand = c;
       }
     }
@@ -326,15 +361,53 @@ void LD2450Radar::associateCandidates(RawCandidate* candidates, int8_t* slotMap)
     }
   }
 
-  // punctele noi ramase le punem pe primul slot liber
+  // Pasul 2: legam si trackerele aflate in curs de confirmare (hits > 0) de punctele din apropiere
+  for (int trkIdx = 0; trkIdx < MAX_TARGETS; trkIdx++) {
+    SlotTracker &tr = _slotTrackers[trkIdx];
+    if (tr.confirmed || tr.hits == 0) continue;
+
+    int   bestCand = -1;
+    float bestDistSq = gateSq;
+
+    for (int c = 0; c < MAX_TARGETS; c++) {
+      if (!candidates[c].valid || folosit[c]) continue;
+
+      float dx = (float)(candidates[c].x - tr.lastRawX);
+      float dy = (float)(candidates[c].y - tr.lastRawY);
+      float dSq = dx * dx + dy * dy;
+
+      if (dSq < bestDistSq) {
+        bestDistSq = dSq;
+        bestCand = c;
+      }
+    }
+
+    if (bestCand != -1) {
+      slotMap[trkIdx] = bestCand;
+      folosit[bestCand] = true;
+    }
+  }
+
+  // Pasul 3: punctele noi ramase le punem pe sloturile complet libere (hits == 0),
+  // sau pe un slot neconfirmat care si-a pierdut urma in cadrul curent
   for (int c = 0; c < MAX_TARGETS; c++) {
     if (!candidates[c].valid || folosit[c]) continue;
 
     for (int trkIdx = 0; trkIdx < MAX_TARGETS; trkIdx++) {
-      if (slotMap[trkIdx] == -1 && !_slotTrackers[trkIdx].confirmed) {
+      if (slotMap[trkIdx] == -1 && _slotTrackers[trkIdx].hits == 0) {
         slotMap[trkIdx] = c;
         folosit[c] = true;
         break;
+      }
+    }
+
+    if (!folosit[c]) {
+      for (int trkIdx = 0; trkIdx < MAX_TARGETS; trkIdx++) {
+        if (slotMap[trkIdx] == -1 && !_slotTrackers[trkIdx].confirmed) {
+          slotMap[trkIdx] = c;
+          folosit[c] = true;
+          break;
+        }
       }
     }
   }
@@ -355,8 +428,8 @@ void LD2450Radar::updateKinematicFilter(SlotTracker &tr, const RawCandidate &can
   // transformam in coordonate polare: rawAngle este azimutul in radiani (-pi/2 .. +pi/2)
   float rawAngle = atan2f(rawCandX, rawCandY);
 
-  // la prima aparitie pe ecran initializam direct variabilele
-  if (!tr.confirmed || tr.hits <= 1) {
+  // la primul cadru detectat initializam direct variabilele, iar de la hits >= 2 rulam filtrul cinematic
+  if (tr.hits <= 1) {
     tr.estX = rawCandX;
     tr.estY = rawCandY;
     tr.estVx = 0.0f;
@@ -367,8 +440,8 @@ void LD2450Radar::updateKinematicFilter(SlotTracker &tr, const RawCandidate &can
     tr.anchorY = rawCandY;
     tr.torsoAnchorR = rawR;
     tr.torsoAnchorAngle = rawAngle;
-    tr.stationaryStartMs = now;
-    tr.isStationary = (abs(cand.speed) <= STATIONARY_SPEED_THRESHOLD_CMS);
+    tr.stationaryStartMs = (abs(cand.speed) <= STATIONARY_SPEED_THRESHOLD_CMS) ? now : 0;
+    tr.isStationary = false;
     tr.isQuasiStatic = false;
     tr.limbHopHits = 0;
     tr.lastUpdateMs = now;
@@ -399,6 +472,8 @@ void LD2450Radar::updateKinematicFilter(SlotTracker &tr, const RawCandidate &can
     tr.isQuasiStatic = false;
     tr.stationaryStartMs = 0;
     tr.limbHopHits = 0;
+  } else if (!tr.isStationary) {
+    tr.stationaryStartMs = 0;
   }
 
   // anti centroid hopping: trunchi vs mana cu mouse-ul
@@ -475,7 +550,10 @@ void LD2450Radar::updateKinematicFilter(SlotTracker &tr, const RawCandidate &can
   // formula: X = R * sin(unghi), Y = R * cos(unghi)
   float newX = tr.estR * sinf(tr.estAngle);
   float newY = tr.estR * cosf(tr.estAngle);
-  if (newY < 100.0f) newY = 100.0f;
+  if (newY < 100.0f) {
+    newY = 100.0f;
+    tr.estR = sqrtf(newX * newX + newY * newY);
+  }
 
   // calculam viteza vectoriala interna din deplasarea pe milisecunda
   if (tr.isStationary) {
@@ -508,12 +586,12 @@ void LD2450Radar::filterTrackers(RawCandidate* candidates, const int8_t* slotMap
 
       // daca o tinta sare dintr-un cadru in altul cu peste 1.2 metri (viteza de 24 m/s, imposibila fizic),
       // e clar o reflexie parazita sau un glitch al senzorului
-      if (tr.confirmed && tr.hits > 0) {
+      if (tr.hits > 0) {
         int dx = cand.x - tr.lastRawX;
         int dy = cand.y - tr.lastRawY;
         if ((dx * dx + dy * dy) > (GHOST_MAX_JUMP_MM * GHOST_MAX_JUMP_MM)) {
           // daca omul este deja confirmat si sta la birou, NU resetam trackerul! Doar ignoram cadrul aberant
-          if (tr.isQuasiStatic || tr.isStationary) {
+          if (tr.confirmed && (tr.isQuasiStatic || tr.isStationary)) {
             continue;
           } else {
             tr.hits = 0;
@@ -581,6 +659,7 @@ void LD2450Radar::suppressDuplicates(RawCandidate* candidates, const int8_t* slo
           candidates[slotMap[i]].valid = false;
           _slotTrackers[i].confirmed = false;
           _slotTrackers[i].hits = 0;
+          break;
         }
         continue;
       }
@@ -599,6 +678,7 @@ void LD2450Radar::suppressDuplicates(RawCandidate* candidates, const int8_t* slo
           candidates[slotMap[otherIdx]].valid = false;
           _slotTrackers[otherIdx].confirmed = false;
           _slotTrackers[otherIdx].hits = 0;
+          if (otherIdx == i) break;
         }
       }
     }
@@ -606,11 +686,10 @@ void LD2450Radar::suppressDuplicates(RawCandidate* candidates, const int8_t* slo
 }
 
 // publicarea starii finale catre bucla grafica de pe Core 1
-void LD2450Radar::publishTargetState(const uint8_t* frame, const RawCandidate* candidates, const int8_t* slotMap,
-                                     uint32_t byteCount, unsigned long now, GhostFilterMode gMode, AccuracyMode aMode) {
+void LD2450Radar::publishTargetState(const RawCandidate* candidates, const int8_t* slotMap,
+                                     unsigned long now, GhostFilterMode gMode) {
   // blocam spinlock-ul hardware pentru transfer atomic intre nuclee
   portENTER_CRITICAL(&_mux);
-  _sharedState.totalBytes += byteCount;
   int activeCount = 0;
 
   for (int i = 0; i < MAX_TARGETS; i++) {
@@ -655,7 +734,7 @@ void LD2450Radar::publishTargetState(const uint8_t* frame, const RawCandidate* c
       float vTotal = sqrtf(tr.estVx * tr.estVx + tr.estVy * tr.estVy) / 10.0f;
       _sharedState.targets[i].speed = tr.isStationary ? 0 : (int)roundf(vTotal);
 
-      _sharedState.targets[i].distance = (int)roundf(sqrtf(tr.estX * tr.estX + tr.estY * tr.estY));
+      _sharedState.targets[i].distance = (int)roundf(tr.estR);
       _sharedState.targets[i].resolution = cand.resolution;
       _sharedState.targets[i].lastSeenMs = now;
       _sharedState.targets[i].valid = true;
@@ -663,16 +742,22 @@ void LD2450Radar::publishTargetState(const uint8_t* frame, const RawCandidate* c
       activeCount++;
     } else if (tr.confirmed && _sharedState.targets[i].valid) {
       // HOLD TIMER: daca semnalul a disparut temporar (omul a stat complet nemiscat cateva fractiuni de secunda),
-      // nu stergem tinta instant! O mai tinem pe ecran 1.2 secunde ca [HLD] ca sa nu clipeasca suparator
+      // nu stergem tinta instant! O mai tinem pe ecran ca [HLD] ca sa nu clipeasca suparator
       unsigned long timpUrmarire = tr.lastSeenMs - tr.firstSeenMs;
       unsigned long limitaHold = (timpUrmarire < 600) ? TARGET_HOLD_BRIEF_MS :
                                  ((gMode == GHOST_FILTER_AGGRESSIVE) ? 800 : TARGET_STALE_REMOVE_MS);
+      unsigned long varsta = now - tr.lastSeenMs;
 
-      if (now - tr.lastSeenMs < limitaHold) {
-        _sharedState.targets[i].speed = 0;
-        _sharedState.targets[i].vx = 0;
-        _sharedState.targets[i].vy = 0;
-        _sharedState.targets[i].isHeld = true;
+      if (varsta < limitaHold) {
+        // daca tinta era in miscare si am ratat doar un pachet (sub 150ms), mentinem viteza ca sa nu palpaie sageata
+        if (varsta <= 150 && !tr.isStationary) {
+          _sharedState.targets[i].isHeld = false;
+        } else {
+          _sharedState.targets[i].speed = 0;
+          _sharedState.targets[i].vx = 0;
+          _sharedState.targets[i].vy = 0;
+          _sharedState.targets[i].isHeld = true;
+        }
         activeCount++;
       } else {
         // a trecut timpul de hold -> eliberam slotul
@@ -690,12 +775,8 @@ void LD2450Radar::publishTargetState(const uint8_t* frame, const RawCandidate* c
 
   _sharedState.activeCount = activeCount;
   _sharedState.lastHeartbeatMs = now;
-  _sharedState.totalPackets++;
-  _sharedState.filterMode = gMode;
-  _sharedState.accuracyMode = aMode;
-  if (frame != NULL) {
-    memcpy(_sharedState.rawFrame, frame, 30);
-  }
+  _sharedState.filterMode = _filterMode;
+  _sharedState.accuracyMode = _accuracyMode;
   // deblocam spinlock-ul: Core 1 poate citi acum copia proaspata
   portEXIT_CRITICAL(&_mux);
 }
@@ -721,14 +802,7 @@ void LD2450Radar::setGhostFilterMode(GhostFilterMode mode) {
   portENTER_CRITICAL(&_mux);
   _filterMode = mode;
   _sharedState.filterMode = mode;
-  for (int i = 0; i < MAX_TARGETS; i++) {
-    _slotTrackers[i].hits = 0;
-    _slotTrackers[i].confirmed = false;
-    _slotTrackers[i].hasMoved = false;
-    _slotTrackers[i].isStationary = false;
-    _slotTrackers[i].isQuasiStatic = false;
-    _slotTrackers[i].limbHopHits = 0;
-  }
+  _resetTrackersPending = true;
   portEXIT_CRITICAL(&_mux);
 }
 
@@ -759,11 +833,13 @@ bool LD2450Radar::sendCommand(uint16_t cmd, const uint8_t* val, uint16_t valLen,
                               uint8_t* actualLen, uint32_t timeoutMs) {
   if (_serial == NULL) return false;
 
-  // oprim temporar task-ul de citire ca sa nu ne fure raspunsul la comanda
-  bool taskSuspended = false;
+  // cerem task-ului de pe Core 0 sa se puna singur in pauza ca sa nu blocam mutex-ul UART
   if (_taskHandle != NULL) {
-    vTaskSuspend(_taskHandle);
-    taskSuspended = true;
+    _pauseRequested = true;
+    uint32_t waitStart = millis();
+    while (!_taskPaused && (millis() - waitStart < 100)) {
+      delay(2);
+    }
   }
 
   while (_serial->available()) _serial->read();
@@ -812,8 +888,8 @@ bool LD2450Radar::sendCommand(uint16_t cmd, const uint8_t* val, uint16_t valLen,
     }
   }
 
-  if (taskSuspended && _taskHandle != NULL) {
-    vTaskResume(_taskHandle);
+  if (_taskHandle != NULL) {
+    _pauseRequested = false;
   }
 
   return success;

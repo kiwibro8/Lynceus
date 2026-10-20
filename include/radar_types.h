@@ -52,9 +52,6 @@ struct CODSharedState {
   CODTarget       targets[MAX_TARGETS]; // cele 3 sloturi de tinte
   int             activeCount;          // cate persoane sunt active acum
   unsigned long   lastHeartbeatMs;      // cand am primit ultimul pachet valid
-  unsigned long   totalPackets;         // total pachete procesate
-  unsigned long   totalBytes;           // total octeti cititi pe serial
-  uint8_t         rawFrame[30];         // ultimul pachet brut de 30 de octeti
   bool            multiTargetActive;    // mod multi-tinta (3 persoane)
   GhostFilterMode filterMode;           // filtrul curent
   AccuracyMode    accuracyMode;         // modul curent de acuratete

@@ -88,19 +88,22 @@ private:
   SlotTracker     _slotTrackers[MAX_TARGETS];// cele 3 trackere de calcul
   GhostFilterMode _filterMode;               // modul curent de filtrare
   AccuracyMode    _accuracyMode;             // modul curent de raspuns
+  bool            _resetTrackersPending;     // cerere de resetare a trackerelor pe Core 0
+  volatile bool   _pauseRequested;           // cerere de pauza cand trimitem comenzi de configurare
+  volatile bool   _taskPaused;               // confirmare ca task-ul de pe Core 0 asteapta in siguranta
 
   // functiile interne care ruleaza continuu pe Core 0
   static void sensorTaskWrapper(void* param); // wrapper-ul cerut de FreeRTOS
   void sensorTaskLoop();                      // bucla de citire din serial
 
   bool feedFrameByte(uint8_t byte, uint8_t* frameBuffer, int &frameIndex); // asamblare pachet (30 octeti)
-  void processFrame(const uint8_t* frame, uint32_t byteCount);             // procesarea completa a unui cadru
+  void processFrame(const uint8_t* frame);                                 // procesarea completa a unui cadru
 
   void decodeCandidates(const uint8_t* frame, RawCandidate* candidates, float maxFovTan);
   void associateCandidates(RawCandidate* candidates, int8_t* slotMap);
   void filterTrackers(RawCandidate* candidates, const int8_t* slotMap, int reqHits, unsigned long now, AccuracyMode accMode);
   void suppressDuplicates(RawCandidate* candidates, const int8_t* slotMap);
-  void publishTargetState(const uint8_t* frame, const RawCandidate* candidates, const int8_t* slotMap, uint32_t byteCount, unsigned long now, GhostFilterMode mode, AccuracyMode accMode);
+  void publishTargetState(const RawCandidate* candidates, const int8_t* slotMap, unsigned long now, GhostFilterMode mode);
 
   void updateKinematicFilter(SlotTracker &tr, const RawCandidate &cand, unsigned long now, AccuracyMode accMode);
 

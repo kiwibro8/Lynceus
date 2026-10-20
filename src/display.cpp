@@ -144,10 +144,10 @@ void DisplayManager::recomputeGridGeometry() {
       // lasam zona libera in partea de sus ca sa nu desenam arcul peste bara de titlu (HUD)
       if ((px < 135 || px > 260) && py < 18) continue;
 
-      // adaugam pixelul in tabloul precalculat daca incape pe ecran
+      // adaugam indexul liniar al pixelului in tabloul precalculat daca incape pe ecran
       if (px >= 0 && px < CANVAS_WIDTH && py >= 0 && py <= CANVAS_ORIGIN_Y) {
-        if (_numRingPoints < (int)(sizeof(_ringPoints) / sizeof(_ringPoints[0]))) {
-          _ringPoints[_numRingPoints++] = {px, py};
+        if (_numRingPoints < (int)(sizeof(_ringOffsets) / sizeof(_ringOffsets[0]))) {
+          _ringOffsets[_numRingPoints++] = (uint32_t)(py * CANVAS_WIDTH + px);
         }
       }
     }
@@ -215,9 +215,9 @@ void DisplayManager::drawDistanceRings() {
   if (_canvas == NULL) return;
 
   uint16_t* buf = _canvas->getBuffer();
-  // aprindem pixelii precalculati direct in memoria RAM, la viteza maxima (fara apeluri lente)
+  // aprindem pixelii precalculati direct in memoria RAM folosind indexul liniar
   for (int i = 0; i < _numRingPoints; i++) {
-    buf[_ringPoints[i].y * CANVAS_WIDTH + _ringPoints[i].x] = COLOR_RADAR_ARC;
+    buf[_ringOffsets[i]] = COLOR_RADAR_ARC;
   }
 
   int numRanges = _cqbMode ? 3 : 6;
@@ -372,21 +372,21 @@ void DisplayManager::drawBottomHud(const CODSharedState &state) {
 }
 
 // deseneaza o sageata orientata 360 de grade care arata directia exacta si viteza de mers a tintei
-void DisplayManager::drawVelocityArrow(int startX, int startY, int endX, int endY, uint16_t color) {
+void DisplayManager::drawVelocityArrow(int startX, int startY, int endX, int endY, float ux, float uy, uint16_t color) {
   if (_canvas == NULL) return;
   // linia principala a sagetii (tija)
   _canvas->drawLine(startX, startY, endX, endY, color);
 
-  // calculam unghiul directiei folosind functia arc-tangenta (atan2f) pe diferenta de coordonate
-  float unghi = atan2f((float)(endY - startY), (float)(endX - startX));
-  float wingAngle = 0.5f; // deschiderea laterala a aripioarelor sagetii (~30 de grade)
-  float wingLen = 5.0f;   // lungimea aripioarelor in pixeli
+  // calculam varfurile laterale prin rotatie 2D directa (pentru unghiul de ~30 grade = 0.5 radiani),
+  // evitand apelurile lente atan2f, sinf si cosf la fiecare cadru
+  const float wingLen = 5.0f;
+  const float COS_W = 0.87758256f; // cos(0.5 rad)
+  const float SIN_W = 0.47942554f; // sin(0.5 rad)
 
-  // calculam cele doua varfuri laterale prin rotatie trigonometrica
-  int wing1X = endX - (int)roundf(wingLen * cosf(unghi - wingAngle));
-  int wing1Y = endY - (int)roundf(wingLen * sinf(unghi - wingAngle));
-  int wing2X = endX - (int)roundf(wingLen * cosf(unghi + wingAngle));
-  int wing2Y = endY - (int)roundf(wingLen * sinf(unghi + wingAngle));
+  int wing1X = endX - (int)roundf(wingLen * (ux * COS_W + uy * SIN_W));
+  int wing1Y = endY - (int)roundf(wingLen * (uy * COS_W - ux * SIN_W));
+  int wing2X = endX - (int)roundf(wingLen * (ux * COS_W - uy * SIN_W));
+  int wing2Y = endY - (int)roundf(wingLen * (uy * COS_W + ux * SIN_W));
 
   // desenam cele doua laturi ale varfului
   _canvas->drawLine(endX, endY, wing1X, wing1Y, color);
@@ -397,14 +397,24 @@ void DisplayManager::drawVelocityArrow(int startX, int startY, int endX, int end
 void DisplayManager::drawTargetPing(int x, int y, int id, int dist_mm, unsigned long ageMs, uint16_t targetColor, bool isHeld) {
   if (_canvas == NULL) return;
 
+  // daca tinta este in hold, estompam treptat culoarea cercului pe masura ce trece timpul fara semnal
+  uint16_t ringColor = targetColor;
+  if (isHeld) {
+    if (ageMs > TARGET_STALE_ORANGE_MS) {
+      ringColor = trailColorForLife(targetColor, 0.35f);
+    } else if (ageMs > TARGET_STALE_BRIGHT_MS) {
+      ringColor = trailColorForLife(targetColor, 0.65f);
+    }
+  }
+
   // cercul exterior cu raza de 6 pixeli
-  _canvas->drawCircle(x, y, 6, targetColor);
+  _canvas->drawCircle(x, y, 6, ringColor);
 
   // cercul din mijloc: daca omul se misca il desenam plin, daca sta pe loc il lasam contur gol
   if (isHeld) {
-    _canvas->drawCircle(x, y, 3, targetColor);
+    _canvas->drawCircle(x, y, 3, ringColor);
   } else {
-    _canvas->fillCircle(x, y, 3, targetColor);
+    _canvas->fillCircle(x, y, 3, ringColor);
   }
 
   // un punct alb stralucitor in centrul exact al tintei (nucleul "fierbinte")
@@ -430,8 +440,16 @@ void DisplayManager::drawTargetPing(int x, int y, int id, int dist_mm, unsigned 
 // adauga pozitia curenta a tintei in bufferul circular pentru a genera efectul de coada (trail)
 void DisplayManager::updateTrails(int slot, int scX, int scY, unsigned long now) {
   TargetTrail &tr = _trails[slot];
-  // preluam o noua mostra la fiecare 60ms ca sa avem puncte distantate vizibil in mers
+  // preluam o noua mostra la fiecare 60ms doar daca tinta s-a deplasat cu cel putin 2 pixeli pe ecran
   if (now - tr.lastSampleMs >= TRAIL_SAMPLE_MS) {
+    if (tr.count > 0) {
+      int lastIdx = (tr.head - 1 + TRAIL_LEN) % TRAIL_LEN;
+      int dx = abs(scX - tr.points[lastIdx].screenX);
+      int dy = abs(scY - tr.points[lastIdx].screenY);
+      if (dx + dy < 2) {
+        return;
+      }
+    }
     tr.lastSampleMs = now;
     tr.points[tr.head] = {scX, scY, now};
     tr.head = (tr.head + 1) % TRAIL_LEN;
@@ -440,10 +458,9 @@ void DisplayManager::updateTrails(int slot, int scX, int scY, unsigned long now)
 }
 
 // deseneaza urma lasata in spate de tinta, estompand punctele mai vechi pana devin invizibile
-void DisplayManager::drawTrails(int slot, uint16_t targetColor) {
+void DisplayManager::drawTrails(int slot, uint16_t targetColor, unsigned long now) {
   if (_canvas == NULL) return;
   TargetTrail &tr = _trails[slot];
-  unsigned long now = millis();
 
   for (int i = 0; i < tr.count; i++) {
     // parcurgem punctele in ordine inversa, de la cel mai recent la cel mai vechi
@@ -483,7 +500,7 @@ void DisplayManager::render(const CODSharedState &state, bool isConnected) {
       if (worldToCanvas((float)t.x, (float)t.y, canvasX, canvasY)) {
         // dâra lasata in spate
         updateTrails(i, canvasX, canvasY, now);
-        drawTrails(i, col);
+        drawTrails(i, col, now);
 
         // sageata de directie daca omul se deplaseaza cu peste 5 cm/s
         if (!t.isHeld && t.speed >= ARROW_MIN_SPEED_CMS) {
@@ -499,7 +516,7 @@ void DisplayManager::render(const CODSharedState &state, bool isConnected) {
 
             int arrowEndX = canvasX + (int)roundf(dirX * lungime);
             int arrowEndY = canvasY - (int)roundf(dirY * lungime);
-            drawVelocityArrow(canvasX, canvasY, arrowEndX, arrowEndY, col);
+            drawVelocityArrow(canvasX, canvasY, arrowEndX, arrowEndY, dirX, -dirY, col);
           }
         }
 

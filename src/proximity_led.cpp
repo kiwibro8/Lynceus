@@ -9,6 +9,9 @@ ProximityLED::ProximityLED() {
   _currentR = 0;
   _currentG = 0;
   _currentB = 0;
+  _lastR = 255;
+  _lastG = 255;
+  _lastB = 255;
   _lastMinDist = 9999;
   _lastUpdateMs = 0;
 }
@@ -41,7 +44,15 @@ void ProximityLED::setRgb(int r, int g, int b) {
   uint8_t scaledG = (uint8_t)((g * NEOPIXEL_BRIGHTNESS) / 255);
   uint8_t scaledB = (uint8_t)((b * NEOPIXEL_BRIGHTNESS) / 255);
 
-  neopixelWrite(RGB_BUILTIN, scaledR, scaledG, scaledB);
+  // trimitem semnalul RMT catre LED doar daca valorile scalate s-au schimbat efectiv
+  if (scaledR == _lastR && scaledG == _lastG && scaledB == _lastB) {
+    return;
+  }
+  _lastR = scaledR;
+  _lastG = scaledG;
+  _lastB = scaledB;
+
+  neopixelWrite(NEOPIXEL_PIN, scaledR, scaledG, scaledB);
 }
 
 // transforma distanta in mm intr-o tranzitie lina de culori
